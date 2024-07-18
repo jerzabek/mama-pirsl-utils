@@ -1,0 +1,4 @@
+*.jpg
+*.png
+
+!watermark_khalas.png
