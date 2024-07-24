@@ -16,8 +16,152 @@
       integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
       crossorigin="anonymous"
     ></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.7.2/axios.min.js"></script>
+
+    <style>
+      .upload-zone {
+        height: 400px;
+
+        border-style: dashed !important;
+      }
+    </style>
+
+    <script>
+      /**
+       * Upon file drop event, POST the files to the server and download processed images.
+       * In case of error during the process, show a modal with the error message.
+       *
+       * @param {DragEvent} File drop event
+       */
+      async function handleDropEvent(event) {
+        event.preventDefault();
+        let files = [];
+
+        if (event.dataTransfer?.items) {
+          const dataTransferItems = [...event.dataTransfer.items];
+
+          if (!dataTransferItems.length) return [];
+
+          files = dataTransferItems
+            .filter((dataTransferItem) => dataTransferItem.kind === "file")
+            .map((dataTransferItem) => dataTransferItem.getAsFile());
+        } else if (event.dataTransfer?.files) {
+          files = [...event.dataTransfer.files];
+        }
+
+        files = files.filter((file) => !!file);
+
+        if (!files.length) return;
+
+        const formData = new FormData();
+
+        files.forEach((file) => {
+          formData.append("images", file);
+        });
+
+        // Send POST request to the server and download received data
+        try {
+          const response = await axios.post(
+            "http://127.0.0.1:5000/process-images",
+            formData,
+            {
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+            }
+          );
+
+          // Create a URL for the blob
+          const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+
+          // Extract filename from Content-Disposition header
+          const contentDisposition = response.headers["content-disposition"];
+          let filename = "downloaded_file.zip"; // Default filename if not found in header
+
+          if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(
+              /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
+            );
+            if (filenameMatch && filenameMatch[1]) {
+              filename = filenameMatch[1].replace(/['"]/g, ""); // Remove any surrounding quotes
+            }
+          }
+
+          // Use the actual filename from the server
+          link.setAttribute("download", filename);
+
+          // Append to the document and trigger the download
+          document.body.appendChild(link);
+          link.click();
+
+          // Clean up
+          link.parentNode.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        } catch (error) {
+          let errorDetails = document.getElementById("errorDetails");
+          errorDetails.textContent =
+            error.response.data.error ?? "Unknown error";
+
+          console.error("Error during file upload/download:", error);
+          var exampleModalPopup = new bootstrap.Modal(
+            document.getElementById("errorModal"),
+            {}
+          );
+          exampleModalPopup.show();
+        }
+      }
+    </script>
   </head>
   <body>
-    <h1>Hello world</h1>
+    <main class="container py-4">
+      <h1>Piršl image utility tool</h1>
+      <p><small>By Yannis Cheilaris, Ivan jeržabek</small></p>
+
+      <div
+        class="mt-6 w-100 border border-3 upload-zone rounded border-success d-flex justify-content-center align-items-center"
+        onDrop="handleDropEvent(event)"
+        ondragover="event.preventDefault()"
+      >
+        <span class="display-4 text-center"> Drop images here </span>
+      </div>
+    </main>
+
+    <div
+      class="modal fade"
+      id="errorModal"
+      tabindex="-1"
+      aria-labelledby="errorModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="errorModalLabel">
+              Something went wrong... :( sorry
+            </h1>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body" id="errorDetails">...</div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+            <button type="button" class="btn btn-primary">Save changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </body>
 </html>
