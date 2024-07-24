@@ -1,17 +1,23 @@
 import os
-from flask import Flask, request, jsonify, send_file, after_this_request
+from main import process_image
+
+from flask import Flask, request, jsonify, send_file, after_this_request, make_response
+from flask_cors import CORS, cross_origin
+
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
-import shutil
-from main import process_image
+
 from tempfile import mkdtemp
 from zipfile import ZipFile
+import shutil
 
 UPLOAD_FOLDER = 'uploads'
 WATERMARK_PATH = 'watermark_khalas.png'
 PROCESSED_IMAGES_ARCHIVE = 'processed_images.zip'
 
 app = Flask(__name__)
+cors = CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type, Content-Disposition'
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['WATERMARK_PATH'] = WATERMARK_PATH
@@ -59,6 +65,7 @@ def process_file(file: FileStorage) -> str:
     return processed_image_path
 
 @app.route('/process-images', methods=['POST'])
+@cross_origin()
 def handle_image_processing():
     """
     Endpoint for processing single or multiple images.\n
@@ -77,11 +84,16 @@ def handle_image_processing():
     # Single file processing
     if len(files) == 1:
         file = files[0]
-        processed_image_path = process_file(file)
+        try:
+          processed_image_path = process_file(file)
+        except Exception as error:
+            return jsonify({'error': f'Error processing image: {error}'}), 400
 
         cleanup_temp_files()
-
-        return send_file(processed_image_path, mimetype='image/jpeg', as_attachment=True, download_name=os.path.basename(processed_image_path))
+        
+        response = make_response(send_file(processed_image_path, mimetype='image/jpeg', as_attachment=True, download_name=os.path.basename(processed_image_path)))
+        response.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
+        return response
 
     # Multiple file processing
     else:
@@ -90,13 +102,17 @@ def handle_image_processing():
 
         with ZipFile(zip_path, 'w') as zipf:
             for file in files:
-                processed_image_path = process_file(file)
+                try:
+                  processed_image_path = process_file(file)
+                except Exception as error:
+                    return jsonify({'error': f'Error processing image: {error}'}), 400
 
                 zipf.write(processed_image_path, os.path.basename(processed_image_path))
 
         cleanup_temp_files(temp_dir=temp_dir)
-
-        return send_file(zip_path, mimetype='application/zip', as_attachment=True, download_name=app.config['PROCESSED_IMAGES_ARCHIVE'])
+        response = make_response(send_file(zip_path, mimetype='application/zip', as_attachment=True, download_name=app.config['PROCESSED_IMAGES_ARCHIVE']))
+        response.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
+        return response
 
 
 if __name__ == '__main__':
