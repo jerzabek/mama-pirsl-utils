@@ -10,12 +10,14 @@ CLI installation is described in [photo_processing_script/README.md](photo_proce
 
 ## Web interface
 
-Web interface is containerized using Docker.
+Web interface is containerized using Docker. The interface is a single `index.html` file served through an nginx container. API calls are routed to the appropriate Docker container inside of the `nginx.conf` file.
 
-### Running the web interface
+### Usage
 
-Locally:
+Run the docker compose file:
 
 ```bash
 docker compose up -d
 ```
+
+Access the interface through [http://localhost:1234](http://localhost:1234).
