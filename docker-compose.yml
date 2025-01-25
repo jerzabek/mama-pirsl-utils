@@ -6,6 +6,7 @@ services:
     container_name: api_container
     expose:
       - "5000"
+    restart: always
 
   nginx:
     image: nginx:latest
@@ -17,3 +18,4 @@ services:
       - ./index.html:/usr/share/nginx/html/index.html
     depends_on:
       - api
+    restart: always
