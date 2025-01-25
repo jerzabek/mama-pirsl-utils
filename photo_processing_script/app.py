@@ -64,7 +64,7 @@ def process_file(file: FileStorage) -> str:
     
     return processed_image_path
 
-@app.route('/process-images', methods=['POST'])
+@app.route('/api/process-images', methods=['POST'])
 @cross_origin()
 def handle_image_processing():
     """
