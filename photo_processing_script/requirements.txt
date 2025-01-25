@@ -7,3 +7,5 @@ pillow==10.4.0
 platformdirs==4.2.2
 tomli==2.0.1
 typing_extensions==4.12.2
+flask==3.0.3
+flask_cors==4.0.1

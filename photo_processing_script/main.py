@@ -1,5 +1,5 @@
 import argparse
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 import os
 
 
@@ -59,6 +59,7 @@ def process_image(
         * Converting image to 16:9 ratio
         * Possibly adding transparent padding
         * Adding a watermark at the center of the image
+    Function returns the path to the processed image on local disk.\n
     """
 
     if not image_path:
@@ -140,7 +141,7 @@ def process_image(
 
     image.close()
 
-    pass
+    return new_image_path
 
 
 def find_and_process_images(

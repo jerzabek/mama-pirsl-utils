@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mama Piršl app</title>
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    />
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+      crossorigin="anonymous"
+    ></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.7.2/axios.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      * {
+        font-family: "Montserrat", sans-serif;
+        font-optical-sizing: auto;
+      }
+      .upload-zone {
+        height: 400px;
+
+        border-style: dashed !important;
+      }
+
+      .upload-zone:hover {
+        border-style: solid !important;
+        cursor: pointer;
+        opacity: 0.8;
+      }
+    </style>
+
+    <script>
+      const API = {
+        /**
+         * URL to send the images to for processing.
+         */
+        processImages: "/api/process-images",
+      };
+
+      /**
+       * Open file dialog when the upload zone is clicked.
+       */
+      function handleOpenFileDialog() {
+        if (!("showOpenFilePicker" in window)) {
+          return;
+        }
+
+        window
+          .showOpenFilePicker({
+            multiple: true,
+            types: [
+              {
+                description: "Assets",
+
+                accept: {
+                  "image/*": [".png", ".gif", ".jpeg", ".jpg", ".gif"],
+                },
+              },
+            ],
+          })
+          .then((fileHandles) =>
+            Promise.all(fileHandles.map((handle) => handle.getFile()))
+          )
+          .then(handleFileUpload)
+          // If user cancels operation exception is thrown
+          .catch((e) =>
+            console.error("File picker operation canceled, probably", e)
+          );
+      }
+
+      /**
+       * Handle file upload event.
+       *
+       * @param {File[]} files Array of files to upload
+       */
+      async function handleFileUpload(files) {
+        const formData = new FormData();
+
+        files.forEach((file) => {
+          formData.append("images", file);
+        });
+
+        // Send POST request to the server and download received data
+        try {
+          const response = await axios.post(API.processImages, formData, {
+            responseType: "blob",
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          });
+
+          // Create a URL for the blob
+          const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+
+          // Extract filename from Content-Disposition header
+          const contentDisposition = response.headers["content-disposition"];
+          let filename = "downloaded_file.zip"; // Default filename if not found in header
+
+          if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(
+              /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
+            );
+            if (filenameMatch && filenameMatch[1]) {
+              filename = filenameMatch[1].replace(/['"]/g, ""); // Remove any surrounding quotes
+            }
+          }
+
+          // Use the actual filename from the server
+          link.setAttribute("download", filename);
+
+          // Append to the document and trigger the download
+          document.body.appendChild(link);
+          link.click();
+
+          // Clean up
+          link.parentNode.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        } catch (error) {
+          if (error.response && error.response.data instanceof Blob) {
+            // Use FileReader to read the blob as text
+            const reader = new FileReader();
+            reader.onload = () => {
+              try {
+                const jsonResponse = JSON.parse(reader.result);
+                // Now you have the JSON, you can get the error message
+                let errorDetails = document.getElementById("errorDetails");
+                errorDetails.textContent =
+                  jsonResponse.error ?? "Unknown error";
+              } catch (e) {
+                // In case the JSON parsing fails
+                console.error("Error parsing the error response:", e);
+              }
+            };
+            reader.onerror = () => {
+              console.error("Error reading the error response.");
+            };
+            reader.readAsText(error.response.data);
+          } else {
+            // Handle other types of errors (not related to the response content)
+            let errorDetails = document.getElementById("errorDetails");
+            errorDetails.textContent = "An unexpected error occurred";
+          }
+
+          console.error("Error during file upload/download:", error);
+          var exampleModalPopup = new bootstrap.Modal(
+            document.getElementById("errorModal"),
+            {}
+          );
+          exampleModalPopup.show();
+        }
+      }
+
+      /**
+       * Upon file drop event, POST the files to the server and download processed images.
+       * In case of error during the process, show a modal with the error message.
+       *
+       * @param {DragEvent} File drop event
+       */
+      async function handleDropEvent(event) {
+        event.preventDefault();
+        let files = [];
+
+        if (event.dataTransfer?.items) {
+          const dataTransferItems = [...event.dataTransfer.items];
+
+          if (!dataTransferItems.length) return [];
+
+          files = dataTransferItems
+            .filter((dataTransferItem) => dataTransferItem.kind === "file")
+            .map((dataTransferItem) => dataTransferItem.getAsFile());
+        } else if (event.dataTransfer?.files) {
+          files = [...event.dataTransfer.files];
+        }
+
+        files = files.filter((file) => !!file);
+
+        if (!files.length) return;
+
+        handleFileUpload(files);
+      }
+    </script>
+  </head>
+  <body>
+    <main class="container py-4">
+      <h1>Piršl image utility tool</h1>
+      <p><small>By Yannis Cheilaris & Ivan Jeržabek</small></p>
+
+      <p>
+        Upload images to process them
+        <em>(turn them into proper aspect ratio and add watermark)</em>
+      </p>
+
+      <div
+        class="mt-6 w-100 border border-3 upload-zone rounded border-success d-flex justify-content-center align-items-center flex-column"
+        onDrop="handleDropEvent(event)"
+        onClick="handleOpenFileDialog()"
+        ondragover="event.preventDefault()"
+      >
+        <span class="display-4 text-center"> Drop images here </span>
+        <br />
+        <span>Or click here to choose file(s)</span>
+      </div>
+    </main>
+
+    <div
+      class="modal fade"
+      id="errorModal"
+      tabindex="-1"
+      aria-labelledby="errorModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="errorModalLabel">
+              Something went wrong... :( sorry
+            </h1>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body" id="errorDetails">...</div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
